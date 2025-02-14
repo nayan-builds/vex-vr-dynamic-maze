@@ -81,6 +81,8 @@ def solve_maze():
     
     drivetrain.turn_to_heading(0, DEGREES)
 
+    brain.print(graph.graph)
+
     # Calculate and travel shortest route from start to end
     pen.set_pen_color(BLUE)
     robot.travel_path(graph.shortest_path("(0,0)", end_node))
@@ -130,15 +132,11 @@ class Robot:
         at_start = self.position.to_string() == "(0,0)"
         at_end = down_eye.detect(RED)
         void = front_distance.get_distance(MM) > 2900
-        looking_down = drivetrain.heading(DEGREES) == 180
-        looking_up = drivetrain.heading(DEGREES) == 0
 
 
         # Treat the entrance and exit holes in the walls (void) as walls
 
-        final = wall or (void and (at_start or at_end))
-
-        return final
+        return wall or (void and (at_start or at_end))
 
 
     def travel_path(self, path):
