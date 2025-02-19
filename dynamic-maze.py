@@ -70,6 +70,8 @@ def solve_maze():
             robot.drive_forward()
             if down_eye.detect(RED): # Set end_node when the red square has been reached
                 end_node = robot.position.to_string()
+                brain.print("End node found at: " + robot.position.to_string())
+                brain.new_line()
             
             # Add node and connection to previous node after moving
             # (won't be added if the node or connection already exists)
@@ -82,6 +84,8 @@ def solve_maze():
     drivetrain.turn_to_heading(0, DEGREES)
 
     brain.print(graph.graph)
+    brain.new_line()
+    graph.print_maze("(0,0)", end_node)
 
     # Calculate and travel shortest route from start to end
     pen.set_pen_color(BLUE)
@@ -92,8 +96,15 @@ def solve_maze():
     # Calculate and travel shortest route from end to start
     pen.set_pen_color(RED)
     robot.travel_path(graph.shortest_path(end_node, "(0,0)"))
-        
 
+def extract_coordinates(point):
+    # Returns x, y integers as a tuple from a "(x,y)" string
+    point = point.strip("()")
+    point_x_str, point_y_str = point.split(",")
+
+    point_x = int(point_x_str)
+    point_y = int(point_y_str)
+    return point_x, point_y
 
 class Point:
     def __init__(self, x, y):
@@ -152,12 +163,8 @@ class Robot:
         for i in range(1, len(path)):
 
             # Extract x, y from node string
-            next_pos = path[i]
-            next_pos = next_pos.strip("()")
-            next_pos_x_str, next_pos_y_str = next_pos.split(",")
+            next_pos_x, next_pos_y = extract_coordinates(path[i])
 
-            next_pos_x = int(next_pos_x_str)
-            next_pos_y = int(next_pos_y_str)
             if next_pos_x > prev_pos_x:
                 #right
                 current_heading = 90
@@ -176,6 +183,9 @@ class Robot:
                 # If the travel direction is same as previous,
                 # add 1 forward move
                 # (to be moved when this is no longer true)
+                # This is so it can move several units in one
+                # movement, rather than moving and stopping multiple
+                # times.
                 forward_moves += 1
             elif i == 1:
                 # Doesn't move on first node as it needs to check
@@ -195,9 +205,6 @@ class Robot:
             prev_pos_x = next_pos_x
             prev_pos_y = next_pos_y
 
-
-
-
 class Graph:
     def __init__(self):
         self.graph = {}
@@ -211,6 +218,60 @@ class Graph:
     def add_node(self, node):
         if node not in self.graph:
             self.graph[node] = []
+
+    def print_maze(self, start, end):
+        # Convert all node strings "(x,y)" (keys) to (x, y) tuples for 
+        positions = set()
+        for node in self.graph.keys():
+            x, y = extract_coordinates(node)
+            positions.add((x, y))
+
+
+        # Determine the bounds of the maze
+        min_x = min(x for x, y in positions)
+        max_x = max(x for x, y in positions)
+        min_y = min(y for x, y in positions)
+        max_y = max(y for x, y in positions)
+
+        # Calculate the maze dimensions with an exterior border
+        # For each node there is a wall or gap (max_x - min_x + 1) * 2
+        # +1 for the last node, since it will have another wall on the
+        # other side
+        width = (max_x - min_x + 1) * 2 + 1
+        height = (max_y - min_y + 1) * 2 + 1
+
+        # Initialize the maze with walls (including exterior walls)
+        maze = [["█" for i in range(width)] for i in range(height)]
+
+        # Fill in walkable spaces and connections
+        for x, y in positions:
+            grid_x = (x - min_x) * 2 + 1  # Offset by 1 for exterior walls
+            grid_y = (y - min_y) * 2 + 1
+            maze[grid_y][grid_x] = " "  # Walkable tile
+
+            # Check for horizontal connection
+            if (x + 1, y) in positions and f"({x+1},{y})" in self.graph[f"({x},{y})"]:
+                maze[grid_y][grid_x + 1] = " "
+
+            # Check for vertical connection
+            if (x, y + 1) in positions and f"({x},{y+1})" in self.graph[f"({x},{y})"]:
+                maze[grid_y + 1][grid_x] = " "
+
+        # Place start and end markers
+        def parse_coordinates(node):
+            x, y = extract_coordinates(node)
+            return (x - min_x) * 2 + 1, (y - min_y) * 2 + 1  # Normalize, scale, and offset
+
+        start_x, start_y = parse_coordinates(start)
+        end_x, end_y = parse_coordinates(end)
+        maze[start_y][start_x] = "O"
+        maze[end_y][end_x] = "X"
+
+        # Print the final maze (flipping Y-axis by reversing rows)
+        for row in maze[::-1]:
+            brain.print("".join(row))
+            brain.new_line()
+
         
     def shortest_path(self, start, end):
         # Finds the shortest path via a breadth-first traversal from start to end
